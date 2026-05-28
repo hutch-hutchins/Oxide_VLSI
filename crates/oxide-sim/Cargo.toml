@@ -1,0 +1,14 @@
+[package]
+name = "oxide-sim"
+description = "SPICE netlist generation and Ngspice runner for Oxide VLSI"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+oxide-db = { path = "../oxide-db" }
+oxide-sch = { path = "../oxide-sch" }
+oxide-extract = { path = "../oxide-extract" }
+serde = { workspace = true }
+thiserror = { workspace = true }

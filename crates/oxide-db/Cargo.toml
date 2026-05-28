@@ -1,0 +1,14 @@
+[package]
+name = "oxide-db"
+description = "Design database: cells, shapes, layers, nets for Oxide VLSI"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+oxide-tech = { path = "../oxide-tech" }
+serde = { workspace = true }
+ron = { workspace = true }
+toml = { workspace = true }
+thiserror = { workspace = true }

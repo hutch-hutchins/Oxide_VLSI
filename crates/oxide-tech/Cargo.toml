@@ -1,0 +1,12 @@
+[package]
+name = "oxide-tech"
+description = "Technology layer model and lambda CMOS design rules for Oxide VLSI"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+toml = { workspace = true }
+thiserror = { workspace = true }

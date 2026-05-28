@@ -1,0 +1,179 @@
+name = "lambda_cmos"
+unit = "λ"
+grid = 1.0
+
+# ─── Layers (bottom to top) ──────────────────────────────────────────────────
+
+[[layers]]
+name = "nwell"
+color = [173, 216, 255, 80]    # light blue, semi-transparent
+purpose = "well"
+z_order = 1
+selectable = true
+
+[[layers]]
+name = "active"
+color = [123, 216, 143, 200]   # green
+purpose = "diffusion"
+z_order = 2
+selectable = true
+
+[[layers]]
+name = "poly"
+color = [255, 112, 112, 220]   # red
+purpose = "gate"
+z_order = 3
+selectable = true
+
+[[layers]]
+name = "contact"
+color = [80, 80, 80, 255]      # dark gray filled square
+purpose = "contact"
+z_order = 4
+selectable = true
+
+[[layers]]
+name = "metal1"
+color = [111, 168, 220, 220]   # blue
+purpose = "routing"
+z_order = 5
+selectable = true
+
+[[layers]]
+name = "via1"
+color = [60, 60, 60, 255]      # dark square
+purpose = "via"
+z_order = 6
+selectable = true
+
+[[layers]]
+name = "metal2"
+color = [255, 200, 80, 220]    # gold/yellow
+purpose = "routing"
+z_order = 7
+selectable = true
+
+[[layers]]
+name = "label"
+color = [240, 240, 240, 255]   # white
+purpose = "label"
+z_order = 8
+selectable = false
+
+# ─── Design Rules (lambda units, Mead & Conway conventions) ──────────────────
+
+# Width rules
+
+[[rules.width]]
+layer = "nwell"
+min = 6.0
+description = "n-well minimum width is 6λ"
+
+[[rules.width]]
+layer = "active"
+min = 3.0
+description = "Active (diffusion) minimum width is 3λ"
+
+[[rules.width]]
+layer = "poly"
+min = 2.0
+description = "Polysilicon minimum width is 2λ"
+
+[[rules.width]]
+layer = "metal1"
+min = 3.0
+description = "Metal1 minimum width is 3λ"
+
+[[rules.width]]
+layer = "metal2"
+min = 3.0
+description = "Metal2 minimum width is 3λ"
+
+# Spacing rules (same-layer, layer_b omitted means same as layer_a)
+
+[[rules.spacing]]
+layer_a = "nwell"
+min = 6.0
+description = "n-well to n-well minimum spacing is 6λ"
+
+[[rules.spacing]]
+layer_a = "active"
+min = 3.0
+description = "Active to active minimum spacing is 3λ"
+
+[[rules.spacing]]
+layer_a = "poly"
+min = 3.0
+description = "Poly to poly minimum spacing is 3λ"
+
+[[rules.spacing]]
+layer_a = "poly"
+layer_b = "active"
+min = 1.0
+description = "Poly to active edge minimum spacing is 1λ (where poly does not cross active)"
+
+[[rules.spacing]]
+layer_a = "contact"
+min = 2.0
+description = "Contact to contact minimum spacing is 2λ"
+
+[[rules.spacing]]
+layer_a = "metal1"
+min = 3.0
+description = "Metal1 to metal1 minimum spacing is 3λ"
+
+[[rules.spacing]]
+layer_a = "via1"
+min = 3.0
+description = "Via1 to via1 minimum spacing is 3λ"
+
+[[rules.spacing]]
+layer_a = "metal2"
+min = 4.0
+description = "Metal2 to metal2 minimum spacing is 4λ"
+
+# Enclosure rules
+
+[[rules.enclosure]]
+outer = "active"
+inner = "contact"
+min = 1.0
+description = "Active must enclose contact by at least 1λ on all sides"
+
+[[rules.enclosure]]
+outer = "metal1"
+inner = "contact"
+min = 1.0
+description = "Metal1 must enclose contact by at least 1λ on all sides"
+
+[[rules.enclosure]]
+outer = "metal1"
+inner = "via1"
+min = 1.0
+description = "Metal1 must enclose via1 by at least 1λ on all sides"
+
+[[rules.enclosure]]
+outer = "metal2"
+inner = "via1"
+min = 1.0
+description = "Metal2 must enclose via1 by at least 1λ on all sides"
+
+[[rules.enclosure]]
+outer = "nwell"
+inner = "active"
+min = 3.0
+description = "n-well must enclose pMOS active by at least 3λ on all sides"
+
+[[rules.enclosure]]
+outer = "poly"
+inner = "active"
+min = 2.0
+description = "Poly gate must extend at least 2λ beyond active on each side"
+
+# Containment rules
+
+[[rules.containment]]
+contained = "active"
+container = "nwell"
+condition = "pmos"
+description = "pMOS active regions must be fully inside an n-well"

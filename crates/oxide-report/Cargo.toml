@@ -1,0 +1,15 @@
+[package]
+name = "oxide-report"
+description = "Markdown, HTML, CSV, and PDF report generation for Oxide VLSI"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+oxide-db = { path = "../oxide-db" }
+oxide-drc = { path = "../oxide-drc" }
+oxide-extract = { path = "../oxide-extract" }
+# printpdf added in v0.4
+serde = { workspace = true }
+thiserror = { workspace = true }

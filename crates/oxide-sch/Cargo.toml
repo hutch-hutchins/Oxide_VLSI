@@ -1,0 +1,14 @@
+[package]
+name = "oxide-sch"
+description = "Schematic capture model for Oxide VLSI"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+oxide-tech = { path = "../oxide-tech" }
+oxide-db = { path = "../oxide-db" }
+serde = { workspace = true }
+ron = { workspace = true }
+thiserror = { workspace = true }

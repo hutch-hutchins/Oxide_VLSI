@@ -1,0 +1,15 @@
+[package]
+name = "oxide-drc"
+description = "Design rule checking engine for Oxide VLSI"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+oxide-tech = { path = "../oxide-tech" }
+oxide-db = { path = "../oxide-db" }
+geo = { workspace = true }
+rstar = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }

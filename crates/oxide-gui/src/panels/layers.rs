@@ -30,7 +30,9 @@ impl LayerPalette {
                 );
                 let _ = swatch; // color swatch shown via colored button
                 let active = matches!(tool, ToolMode::DrawRect { layer: l } if l == &layer.name);
-                let btn = egui::Button::new(&layer.name)
+                let btn = egui::Button::new(
+                        egui::RichText::new(&layer.name).color(Color32::BLACK),
+                    )
                     .fill(Color32::from_rgb(r, g, b));
                 if ui.add(btn).clicked() {
                     *tool = ToolMode::DrawRect { layer: layer.name.clone() };

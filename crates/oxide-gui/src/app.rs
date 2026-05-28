@@ -3,6 +3,7 @@ use crate::commands::{Command, CommandStack};
 use crate::panels::drc_panel::DrcPanel;
 use crate::panels::inspector::Inspector;
 use crate::panels::layers::LayerPalette;
+use crate::panels::netlist::NetlistPanel;
 use crate::panels::project::ProjectPanel;
 use crate::tools::ToolMode;
 use eframe::egui;
@@ -28,6 +29,16 @@ pub struct OxideApp {
     pub logo: egui::TextureHandle,
     pub commands: CommandStack,
     pub export_status: Option<String>,
+    pub extraction: Option<oxide_extract::ExtractionResult>,
+    pub highlighted_net: Option<usize>,
+    pub bottom_tab: BottomTab,
+}
+
+#[derive(Default, PartialEq)]
+pub enum BottomTab {
+    #[default]
+    Drc,
+    Netlist,
 }
 
 impl OxideApp {
@@ -51,6 +62,9 @@ impl OxideApp {
             logo,
             commands: CommandStack::default(),
             export_status: None,
+            extraction: None,
+            highlighted_net: None,
+            bottom_tab: BottomTab::Drc,
         }
     }
 
@@ -65,6 +79,8 @@ impl OxideApp {
         self.selected.clear();
         self.canvas = CanvasState::default();
         self.commands.clear();
+        self.extraction = None;
+        self.highlighted_net = None;
     }
 
     pub fn new_from_template(&mut self, key: &str) {
@@ -87,6 +103,8 @@ impl OxideApp {
         self.selected.clear();
         self.canvas = CanvasState::default();
         self.commands.clear();
+        self.extraction = None;
+        self.highlighted_net = None;
     }
 
     pub fn apply_cmd(&mut self, cmd: Command) {
@@ -129,6 +147,74 @@ impl OxideApp {
         self.apply_cmd(Command::DeleteShapes { cell: cell_name, shapes });
     }
 
+    pub fn save_project(&mut self) {
+        let path = self
+            .project
+            .as_ref()
+            .and_then(|p| p.path.clone())
+            .or_else(|| {
+                rfd::FileDialog::new()
+                    .set_title("Save Project — choose or create a folder")
+                    .pick_folder()
+            });
+
+        if let (Some(path), Some(proj)) = (path, self.project.as_mut()) {
+            match proj.save(&path) {
+                Ok(()) => {
+                    proj.path = Some(path.clone());
+                    self.export_status =
+                        Some(format!("Saved → {}", path.display()));
+                }
+                Err(e) => {
+                    self.export_status = Some(format!("Save failed: {e}"));
+                }
+            }
+        }
+    }
+
+    pub fn save_project_as(&mut self) {
+        let path = rfd::FileDialog::new()
+            .set_title("Save Project As — choose or create a folder")
+            .pick_folder();
+
+        if let (Some(path), Some(proj)) = (path, self.project.as_mut()) {
+            match proj.save(&path) {
+                Ok(()) => {
+                    proj.path = Some(path.clone());
+                    self.export_status =
+                        Some(format!("Saved → {}", path.display()));
+                }
+                Err(e) => {
+                    self.export_status = Some(format!("Save failed: {e}"));
+                }
+            }
+        }
+    }
+
+    pub fn open_project(&mut self) {
+        let path = rfd::FileDialog::new()
+            .set_title("Open Project — select project folder")
+            .pick_folder();
+
+        if let Some(path) = path {
+            match oxide_db::project::Project::load(&path) {
+                Ok(proj) => {
+                    self.active_cell = proj.meta.cells.first().cloned();
+                    self.project = Some(proj);
+                    self.drc_results.clear();
+                    self.selected.clear();
+                    self.canvas = crate::canvas::CanvasState::default();
+                    self.commands.clear();
+                    self.extraction = None;
+                    self.highlighted_net = None;
+                }
+                Err(e) => {
+                    self.export_status = Some(format!("Open failed: {e}"));
+                }
+            }
+        }
+    }
+
     pub fn do_export(&mut self, format: &str) {
         let cell_name = match self.active_cell.clone() { Some(c) => c, None => return };
         let (layout, tech) = match &self.project {
@@ -154,6 +240,8 @@ impl OxideApp {
         let result: anyhow::Result<()> = match format {
             "svg" => crate::export::export_svg(&layout, &tech, &path),
             "png" => crate::export::export_png(&layout, &tech, &path),
+            "gds" => oxide_gds::export_gds(&layout, &cell_name, &path)
+                .map_err(|e| anyhow::anyhow!("{e}")),
             "md" => {
                 // List SVG/PNG files already present in the exports dir.
                 let exported: Vec<String> = ["svg", "png"]
@@ -178,6 +266,16 @@ impl OxideApp {
             Ok(()) => format!("Exported {} → {}", format.to_uppercase(), path.display()),
             Err(e) => format!("Export failed: {}", e),
         });
+    }
+
+    pub fn run_extract(&mut self) {
+        if let (Some(proj), Some(cell_name)) = (&self.project, &self.active_cell) {
+            if let Some(cell) = proj.library.cell(cell_name) {
+                self.extraction = Some(oxide_extract::Extractor::run(&cell.layout));
+                self.highlighted_net = None;
+                self.bottom_tab = BottomTab::Netlist;
+            }
+        }
     }
 
     pub fn run_drc(&mut self) {
@@ -216,6 +314,31 @@ impl eframe::App for OxideApp {
                 ui.menu_button("File", |ui| {
                     if ui.button("New Blank Project").clicked() {
                         self.new_blank_project();
+                        ui.close();
+                    }
+                    ui.separator();
+                    if ui
+                        .add_enabled(
+                            self.project.is_some(),
+                            egui::Button::new("Save Project  [Ctrl+S]"),
+                        )
+                        .clicked()
+                    {
+                        self.save_project();
+                        ui.close();
+                    }
+                    if ui
+                        .add_enabled(
+                            self.project.is_some(),
+                            egui::Button::new("Save Project As..."),
+                        )
+                        .clicked()
+                    {
+                        self.save_project_as();
+                        ui.close();
+                    }
+                    if ui.button("Open Project...").clicked() {
+                        self.open_project();
                         ui.close();
                     }
                     ui.separator();
@@ -261,8 +384,12 @@ impl eframe::App for OxideApp {
                 });
 
                 ui.menu_button("Verify", |ui| {
-                    if ui.button("Run DRC  [F5]").clicked() {
+                    if ui.button("Run DRC      [F5]").clicked() {
                         self.run_drc();
+                        ui.close();
+                    }
+                    if ui.button("Run Extract  [F6]").clicked() {
+                        self.run_extract();
                         ui.close();
                     }
                 });
@@ -275,6 +402,10 @@ impl eframe::App for OxideApp {
                     }
                     if ui.add_enabled(has_project, egui::Button::new("Export PNG")).clicked() {
                         self.do_export("png");
+                        ui.close();
+                    }
+                    if ui.add_enabled(has_project, egui::Button::new("Export GDS")).clicked() {
+                        self.do_export("gds");
                         ui.close();
                     }
                     ui.separator();
@@ -305,21 +436,41 @@ impl eframe::App for OxideApp {
         if ctx.input(|i| i.key_pressed(egui::Key::F5)) {
             self.run_drc();
         }
+        if ctx.input(|i| i.key_pressed(egui::Key::F6)) {
+            self.run_extract();
+        }
         if ctx.input(|i| i.modifiers.ctrl && i.key_pressed(egui::Key::Z)) {
             self.undo();
         }
         if ctx.input(|i| i.modifiers.ctrl && i.key_pressed(egui::Key::Y)) {
             self.redo();
         }
+        if ctx.input(|i| i.modifiers.ctrl && i.key_pressed(egui::Key::S))
+            && self.project.is_some()
+        {
+            self.save_project();
+        }
         if ctx.input(|i| i.key_pressed(egui::Key::Delete)) {
             self.delete_selected();
         }
 
-        // ── Bottom panel: DRC ────────────────────────────────────────────────
-        egui::Panel::bottom("drc_panel")
+        // ── Bottom panel: DRC / Netlist tabs ─────────────────────────────────
+        egui::Panel::bottom("bottom_panel")
             .min_size(130.0)
             .show_inside(ui, |ui| {
-                self.drc_panel.show(ui, &self.drc_results, &mut self.canvas);
+                ui.horizontal(|ui| {
+                    ui.selectable_value(&mut self.bottom_tab, BottomTab::Drc, "DRC");
+                    ui.selectable_value(&mut self.bottom_tab, BottomTab::Netlist, "Netlist");
+                });
+                ui.separator();
+                match self.bottom_tab {
+                    BottomTab::Drc => {
+                        self.drc_panel.show(ui, &self.drc_results, &mut self.canvas);
+                    }
+                    BottomTab::Netlist => {
+                        NetlistPanel::show(ui, &self.extraction, &mut self.highlighted_net);
+                    }
+                }
             });
 
         // ── Left panel: project tree ─────────────────────────────────────────

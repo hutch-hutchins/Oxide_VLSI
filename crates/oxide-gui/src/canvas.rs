@@ -7,6 +7,7 @@ use oxide_db::shape::ShapeId;
 const GRID_COLOR: Color32 = Color32::from_rgba_premultiplied(60, 60, 60, 120);
 const GRID_MAJOR_COLOR: Color32 = Color32::from_rgba_premultiplied(80, 80, 80, 180);
 const DRC_HIGHLIGHT: Color32 = Color32::from_rgba_premultiplied(255, 60, 60, 120);
+const NET_HIGHLIGHT: Color32 = Color32::from_rgba_premultiplied(255, 220, 0, 110);
 const BOX_SELECT_COLOR: Color32 = Color32::from_rgba_premultiplied(100, 180, 255, 200);
 
 // ── Select drag state ─────────────────────────────────────────────────────────
@@ -224,6 +225,21 @@ fn draw_shapes(painter: &Painter, state: &CanvasState, app: &OxideApp, origin: P
                 if drc_ids.contains(&shape.id) {
                     let screen_rect = oxide_rect_to_egui(state, &shape.bounding_rect(), origin);
                     painter.rect_filled(screen_rect, 0.0, DRC_HIGHLIGHT);
+                }
+            }
+
+            // Net highlight overlay
+            if let (Some(hi_net), Some(extraction)) = (app.highlighted_net, &app.extraction) {
+                if let Some(net) = extraction.nets.get(hi_net) {
+                    let hi_ids: std::collections::HashSet<ShapeId> =
+                        net.shape_ids.iter().copied().collect();
+                    for shape in &cell.layout.shapes {
+                        if hi_ids.contains(&shape.id) {
+                            let screen_rect =
+                                oxide_rect_to_egui(state, &shape.bounding_rect(), origin);
+                            painter.rect_filled(screen_rect, 0.0, NET_HIGHLIGHT);
+                        }
+                    }
                 }
             }
         }

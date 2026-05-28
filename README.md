@@ -8,25 +8,43 @@ Oxide VLSI is an open-source desktop VLSI design environment built for undergrad
 
 ---
 
-## Features (v0.1)
+## Current Status
 
-- Lambda CMOS layout editor with pan, zoom, and snap-to-grid
+| Version | Status | Description |
+| ------- | ------ | ----------- |
+| v0.1 | ✅ Complete | Lambda CMOS layout editor, DRC, SVG/PNG export, project save/load, lab templates |
+| v0.2 | ✅ Complete | Connectivity extraction, transistor recognition, net highlighting, GDSII export/import |
+| v0.3 | 🔲 Planned | Schematic capture, SPICE netlist export, ngspice simulation, waveform viewer |
+| v0.4 | 🔲 Planned | LVS (layout vs. schematic), batch grading CLI, per-student PDF reports |
+| v0.5 | 🔲 Planned | Sky130 layer mapping, KLayout/Magic/Netgen integration |
+
+---
+
+## Features
+
+### v0.1 — Lambda CMOS Layout Editor
+
+- Pan, zoom, snap-to-grid canvas (egui/wgpu)
 - Layer palette: nwell, active, poly, contact, metal1, via1, metal2
-- Design Rule Checker (DRC) with teaching-first error messages
-- SVG and PNG export
-- Project save/load (directory-based, git-friendly)
-- Lab templates: CMOS Inverter, 2-Input NAND, 2-Input NOR
-- Command-line grading tool (`Oxide_VLSI_cli`)
+- Rectangle draw tool with undo/redo (command stack)
+- Select, move, box-select, delete
+- Design Rule Checker with teaching-first error messages (width, spacing, enclosure, pMOS-in-nwell)
+- DRC panel with click-to-zoom-to-violation
+- SVG and PNG export with scale bar
+- Markdown lab report export
+- Project save/load — directory-based format, git-friendly
+- Lab templates: CMOS Inverter, 2-Input NAND, 2-Input NOR (pre-drawn power rails + nwell)
+- Welcome screen with template selector
 
-## Roadmap
+### v0.2 — Connectivity Extraction + GDSII
 
-| Version | Milestone |
-|---------|-----------|
-| v0.1 | Lambda CMOS layout editor, DRC, SVG/PNG export |
-| v0.2 | GDSII export/import, connectivity extraction, net highlighting |
-| v0.3 | Schematic capture, SPICE simulation, waveform viewer |
-| v0.4 | LVS, batch grading infrastructure, per-student PDF reports |
-| v0.5 | Sky130 layer mapping, KLayout/Magic/Netgen integration |
+- Union-Find connectivity flood-fill across layers (active/poly → contact → metal1 → via1 → metal2)
+- Transistor recognition: poly ∩ active → device; nwell context → pMOS vs. nMOS
+- Netlist panel showing nets, device count, gate/S-D assignments
+- Net highlighting: click a net → canvas highlights all connected shapes in gold
+- GDSII export (`exports/<cell>.gds`) — KLayout-compatible, 1λ = 1 μm = 1000 db-units
+- GDSII import (rectangles + labels; first struct in file)
+- File → Save Project / Save As / Open Project with native OS file picker (Ctrl+S)
 
 ---
 
@@ -54,7 +72,12 @@ cargo run -p oxide-gui --release
 cargo run -p oxide-cli --release -- --help
 ```
 
-The debug build is also available without `--release` for faster compile times during development.
+The debug build is faster to compile and works identically:
+
+```sh
+cargo build
+cargo run -p oxide-gui
+```
 
 ### Running tests
 
@@ -66,7 +89,7 @@ cargo test
 
 ## Project structure
 
-```
+```text
 Oxide_VLSI/
   Cargo.toml          workspace manifest
   assets/             logos and static assets
@@ -75,7 +98,7 @@ Oxide_VLSI/
     oxide-db/         design database (cells, shapes, project save/load)
     oxide-drc/        design rule checker
     oxide-extract/    connectivity and transistor extraction
-    oxide-gds/        GDSII import/export (v0.2)
+    oxide-gds/        GDSII import/export
     oxide-sch/        schematic capture (v0.3)
     oxide-sim/        SPICE netlist + ngspice runner (v0.3)
     oxide-report/     PDF/HTML grading reports (v0.4)
@@ -84,6 +107,172 @@ Oxide_VLSI/
   examples/
     labs/             starter projects for each lab assignment
 ```
+
+---
+
+## Development Plan
+
+The sections below document the intended implementation for v0.3–v0.5.
+They are preserved here so work can resume from a clean state.
+
+---
+
+### v0.3 — Schematic Capture + SPICE Simulation
+
+**New crates:** `oxide-sch`, `oxide-sim`
+
+#### oxide-sch data model
+
+```rust
+pub struct Schematic {
+    pub instances: Vec<SchInstance>,
+    pub wires:     Vec<Wire>,
+    pub ports:     Vec<SchPort>,
+    pub labels:    Vec<NetLabel>,
+}
+
+pub struct SchInstance {
+    pub name:   String,                       // "M1"
+    pub symbol: String,                       // "nmos", "pmos", "inv", …
+    pub pos:    SchPoint,
+    pub pins:   HashMap<String, String>,      // pin name → net name
+}
+
+pub struct Wire { pub points: Vec<SchPoint> }
+
+pub struct SchPort {
+    pub name:      String,
+    pub direction: PortDir,
+    pub pos:       SchPoint,
+}
+```
+
+#### v0.3 Milestones
+
+1. Schematic canvas tab in oxide-gui — separate egui panel, same app state
+2. `oxide-sch` data model: symbols, wires, ports, net labels
+3. Built-in primitive symbols: nMOS, pMOS, VDD, GND, resistor, capacitor, voltage source, input pin, output pin
+4. Built-in gate symbols: inverter, NAND2, NOR2, transmission gate
+5. SPICE netlist export from schematic (`oxide-sim`):
+
+   ```spice
+   * Generated by Oxide VLSI
+   M1 Y A VDD VDD pmos W=4u L=2u
+   M2 Y A GND GND nmos W=2u L=2u
+   .end
+   ```
+
+6. Extracted SPICE netlist from layout extraction result
+7. ngspice runner: spawn subprocess, capture stdout/stderr
+8. DC transfer curve workflow (inverter Vin vs. Vout sweep)
+9. Transient simulation workflow
+10. Waveform viewer in egui (simple polyline plot, multiple traces)
+11. Simulation report export (PNG waveform + summary table)
+
+#### v0.3 Key External Crates
+
+- `oxide-sim` uses `std::process::Command` to call ngspice
+- No new crates required beyond the existing workspace
+
+---
+
+### v0.4 — LVS + Grading Infrastructure
+
+**New crates:** `oxide-lvs`, expand `oxide-report` and `oxide-cli`
+
+#### oxide-lvs data model
+
+```rust
+pub struct LvsResult {
+    pub matched:              bool,
+    pub device_count_sch:     usize,
+    pub device_count_lay:     usize,
+    pub net_mismatches:       Vec<NetMismatch>,
+    pub device_mismatches:    Vec<DeviceMismatch>,
+}
+
+pub fn compare(sch: &Schematic, extraction: &ExtractionResult) -> LvsResult { … }
+```
+
+#### Lab definition file (`lab.toml`)
+
+```toml
+[lab]
+name = "CMOS Inverter"
+required_pins = { inputs = ["A"], outputs = ["Y"], power = ["VDD", "GND"] }
+required_devices = { pmos = 1, nmos = 1 }
+
+[checks]
+drc              = true
+extract          = true
+lvs              = true
+max_area_lambda2 = 400
+```
+
+#### v0.4 Milestones
+
+1. `oxide-lvs`: device-count match, net connectivity match, teaching-first mismatch messages
+2. Lab definition loader (`lab.toml` per assignment)
+3. `oxide-cli` batch grader:
+
+   ```sh
+   oxide-vlsi grade submissions/ --lab inverter.toml --output report/
+   ```
+
+4. Grading artifacts: `summary.csv`, `summary.html`, per-student `student_N.md`
+5. `oxide-report` PDF generation (via `printpdf` or pandoc subprocess)
+6. Instructor mode: `oxide-vlsi new-lab --name inverter --template inv`
+7. Rubric generation from `lab.toml` checks
+
+---
+
+### v0.5 — Open-Source Flow Integration
+
+#### v0.5 Milestones
+
+1. Sky130 educational layer mapping:
+   - Translate lambda CMOS internal layer names → Sky130 GDS layer numbers
+   - Subset only (active, poly, metal1-2, contact, via1, nwell)
+2. KLayout integration:
+   - Export GDS + launch KLayout via `std::process::Command`
+   - Parse KLayout DRC script output, import violations into oxide DRC panel
+3. Magic integration:
+   - Spawn Magic, run extraction, parse `.ext` output
+   - Import extracted netlist into oxide Netlist panel
+4. Netgen integration:
+   - LVS via Netgen as optional backend (replaces oxide-lvs for Sky130 flows)
+5. OpenLane/OpenROAD handoff:
+   - Export standard-cell GDS for place-and-route
+   - Standard-cell library exercises (Lab 9–10)
+6. Flow-stage report parser:
+   - Import KLayout/Magic/Netgen results into oxide report format
+
+---
+
+### Implementation Notes
+
+**Crate dependency order** (no circular deps):
+
+```text
+oxide-tech → oxide-db → oxide-drc
+                      → oxide-extract → oxide-lvs (v0.4)
+                      → oxide-gds
+                      → oxide-sch     (v0.3)
+                      → oxide-sim     (v0.3)
+                      → oxide-report  (v0.4)
+                      → oxide-gui     (depends on all)
+                      → oxide-cli     (depends on all)
+```
+
+**eframe/egui version:** 0.34 — `fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame)`, all panels use `show_inside`.
+
+**GDS coordinate convention:** 1λ = 1 μm = 1000 GDS db-units (1 nm/unit). `GdsUnits::new(1e-9, 1e-6)`.
+
+**Undo/redo:** `Command` enum + `CommandStack` with two `Vec<Command>` stacks. `MoveShapes`, `AddShape`, `DeleteShapes` variants. Extend with `AddLabel`, `DeleteLabel` when label editing is added.
+
+**Canvas coordinate system:** origin at panel top-left; y increases downward on screen, upward in lambda space. `lambda_to_screen` inverts y: `screen_y = origin.y + pan.y - lambda_y * scale`.
+
+**DRC performance note:** pairwise O(n²) is fine for teaching layouts (< 500 shapes). Use `rstar` R-tree for larger cells in v0.5 flow integration.
 
 ---
 

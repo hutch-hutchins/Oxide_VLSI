@@ -9,6 +9,6 @@ license.workspace = true
 [dependencies]
 oxide-tech = { path = "../oxide-tech" }
 oxide-db = { path = "../oxide-db" }
-# gds21 integration added in v0.2
+gds21 = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }

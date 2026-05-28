@@ -16,6 +16,7 @@ oxide-db = { path = "../oxide-db" }
 oxide-drc = { path = "../oxide-drc" }
 oxide-extract = { path = "../oxide-extract" }
 oxide-report = { path = "../oxide-report" }
+oxide-gds = { path = "../oxide-gds" }
 eframe = { workspace = true }
 egui = { workspace = true }
 svg = { workspace = true }
@@ -27,3 +28,4 @@ thiserror = { workspace = true }
 anyhow = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
+rfd = { workspace = true }
